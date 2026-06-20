@@ -373,7 +373,7 @@ $file:$line - $label
 
   * `none`: Don't show the bookmarked line in the overview ruler
   * `left`: Show the bookmarked line in the left lane of the overview ruler
-  * `center`: Show the bookmarked line in the center lane of the overview ruler
+  * `center`: Show the bookmarked line in the center of the overview ruler
   * `right`: Show the bookmarked line in the right lane of the overview ruler
   * `full`: Show the bookmarked line in the full height of the overview ruler
 
