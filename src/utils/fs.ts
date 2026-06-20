@@ -72,6 +72,7 @@ export async function fileExists(filePath: string): Promise<boolean> {
 }
 
 export async function createDirectoryUri(uri: Uri): Promise<void> {
+    assertAllowedBookmarkMetadataDirectory(uri);
     return workspace.fs.createDirectory(uri);
 }
 
@@ -96,16 +97,54 @@ export async function readRAWFileUri(uri: Uri): Promise<string> {
 
 export async function writeFile(filePath: string, contents: string): Promise<void> {
     const writeData = new TextEncoder().encode(contents);
-    await workspace.fs.writeFile(Uri.parse(filePath), writeData);
+    const uri = Uri.parse(filePath);
+    assertAllowedBookmarkMetadataWrite(uri);
+    await workspace.fs.writeFile(uri, writeData);
 }
 
 export async function writeFileUri(uri: Uri, contents: string): Promise<void> {
     const writeData = new TextEncoder().encode(contents);
+    assertAllowedBookmarkMetadataWrite(uri);
     await workspace.fs.writeFile(uri, writeData);
 }
 
 export async function deleteFileUri(uri: Uri): Promise<void> {
+    assertAllowedBookmarkMetadataWrite(uri);
     await workspace.fs.delete(uri, { recursive: false, useTrash: false});
+}
+
+export function assertAllowedBookmarkMetadataWrite(uri: Uri): void {
+    if (isAllowedBookmarkMetadataUri(uri)) {
+        return;
+    }
+
+    throw new Error(`Refusing to write outside bookmark metadata files: ${uri.fsPath}`);
+}
+
+function assertAllowedBookmarkMetadataDirectory(uri: Uri): void {
+    const workspaceFolder = workspace.getWorkspaceFolder(uri);
+    if (!workspaceFolder) {
+        throw new Error(`Refusing to create a directory outside the workspace: ${uri.fsPath}`);
+    }
+
+    const relativePath = getRelativePath(workspaceFolder.uri.fsPath, uri.fsPath).replace(/\\/g, "/");
+    if (relativePath === ".vscode") {
+        return;
+    }
+
+    throw new Error(`Refusing to create a non-bookmark metadata directory: ${uri.fsPath}`);
+}
+
+function isAllowedBookmarkMetadataUri(uri: Uri): boolean {
+    const workspaceFolder = workspace.getWorkspaceFolder(uri);
+    if (!workspaceFolder) {
+        return false;
+    }
+
+    const relativePath = getRelativePath(workspaceFolder.uri.fsPath, uri.fsPath).replace(/\\/g, "/");
+    return relativePath === "bookmarks.json" ||
+        relativePath === "bookmark.md" ||
+        relativePath === ".vscode/bookmarks.json";
 }
 
 export function parsePosition(position: string): Bookmark | undefined {

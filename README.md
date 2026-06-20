@@ -45,6 +45,49 @@ Here are some of the features that **Bookmarks** provides:
 * **Select lines** and **regions** with bookmarks
 * A dedicated **Side Bar**
 
+# Original project, license, and attribution
+
+This repository is based on the original **Bookmarks** extension for Visual Studio Code, created and maintained by **Alessandro Fragnani** and released under the **GNU General Public License v3.0**.
+
+All original rights, copyright notices, authorship, license terms, sponsor links, and project credit belong to the original author and contributors. This modified version keeps the original GPL-3.0 license and remains a derivative work of the upstream project:
+
+* Original project: <https://github.com/alefragnani/vscode-bookmarks>
+* Original author: Alessandro Fragnani
+* License: [GPL-3.0](License.md)
+
+The Bookmarks AI additions described below are modifications built on top of that original extension and are distributed under the same GPL-3.0 license terms.
+
+# Bookmarks AI
+
+Bookmarks AI extends the project bookmark tree into a shared project map for developers and AI agents. The goal is to make important code locations, requirements, TODOs, known bugs, and feature areas easy to find without forcing an agent or developer to scan the entire codebase first.
+
+The extension uses two root-level project files:
+
+* `bookmarks.json` - the shared bookmark index. It stores groups, bookmark labels, file paths, line and column positions, symbols, and reference IDs.
+* `bookmark.md` - a generated guide that explains the `bookmarks.json` schema, reference naming rules, safe update workflow, and how agents should use the map.
+
+The extension can scan supported source files for Doxygen-style reference comments:
+
+```c
+/**
+ * @brief Analog Initialization
+ * @ref [startup, sensing/analog, requirement/SRS-321]
+ */
+void Analog_Init(void);
+```
+
+Reference IDs use slash-separated paths, for example `startup/power`, `sensing/analog`, or `requirement/SRS-321`. The tree uses these IDs to organize bookmarks into logical areas. Requirement references appear under **Requirements**. Bookmarks with no reference path appear under **Unclassified**. Invalid or malformed bookmark data appears under **Bad Classification** so it can be fixed.
+
+Bookmarks AI also recognizes:
+
+* `@brief` or `\brief` in the same comment block as the human-readable bookmark title.
+* `@bug` or `\bug` as a Doxygen-supported marker for known bugs or risky behavior.
+* `// TODO` comments as TODO items in the tree.
+
+Manual bookmarks and scanned reference annotations are persisted into `bookmarks.json`, so future extension sessions and AI-assisted work read the same project map. The generated `bookmark.md` file tells an AI agent to read the guide first, then `bookmarks.json`, before opening source files.
+
+For safety and privacy, Bookmarks AI treats source files as read-only. It scans source files for comments, but extension-owned writes are limited to bookmark metadata files such as `bookmarks.json`, `bookmark.md`, and the legacy `.vscode/bookmarks.json` storage file. Built-in AI prompts are opened locally for review instead of automatically sending code or prompts to an external chat service.
+
 # Features
 
 ## Available commands
@@ -56,7 +99,6 @@ Here are some of the features that **Bookmarks** provides:
 * `Bookmarks: List` List all bookmarks in the current file
 * `Bookmarks: List from All Files` List all bookmarks from all files
 * `Bookmarks: Clear` remove all bookmarks in the current file
-* `Bookmarks: Clear from All Files` remove all bookmarks from all files
 * `Bookmarks: Export` Export all bookmarks to a Markdown document with customizable format
 * `Bookmarks (Selection): Select Lines` Select all lines that contains bookmarks
 * `Bookmarks (Selection): Expand Selection to Next` Expand the selected text to the next bookmark

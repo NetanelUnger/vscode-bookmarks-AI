@@ -27,9 +27,8 @@ import { isInDiffEditor, previewPositionInDocument, revealPosition } from "./uti
 import { registerOpenSettings } from "./commands/openSettings";
 import { registerSupportBookmarks } from "./commands/supportBookmarks";
 import { registerExport } from "./commands/export";
-import { registerHelpAndFeedbackView } from "./sidebar/helpAndFeedbackView";
+import { registerBookmarksAI } from "./commands/bookmarksAI";
 import { registerWhatsNew } from "./whats-new/commands";
-import { ViewAs } from "./sidebar/nodes";
 import { Selection } from "vscode";
 import { EditorLineNumberContextParams, updateLinesWithBookmarkContext } from "./gutter/editorLineNumberContext";
 import { registerGutterCommands } from "./gutter/commands";
@@ -61,7 +60,7 @@ export async function activate(context: vscode.ExtensionContext) {
     registerOpenSettings();
     registerSupportBookmarks();
     registerExport(() => controllers);
-    registerHelpAndFeedbackView(context);
+    const bookmarksAIProvider = registerBookmarksAI(context);
 
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async cfg => {
         // Allow change the gutterIcon and inline label decoration without reload
@@ -191,42 +190,17 @@ export async function activate(context: vscode.ExtensionContext) {
         updateLinesWithBookmarkContext(activeController.activeFile);
     }
 
-    const bookmarkExplorer = new BookmarksExplorer(controllers);
+    const bookmarkExplorer = new BookmarksExplorer(controllers, bookmarksAIProvider);
     const bookmarkProvider = bookmarkExplorer.getProvider();
 
     bookmarkExplorer.updateBadge();
 
     toggleSideBarWelcomeVisibility();
 
-    vscode.commands.registerCommand("_bookmarks.sidebar.hidePosition", () => toggleSidebarPositionVisibility(false));
-    vscode.commands.registerCommand("_bookmarks.sidebar.showPosition", () => toggleSidebarPositionVisibility(true));
-    vscode.commands.executeCommand("setContext", "bookmarks.isHidingPosition",
-        Container.context.globalState.get<boolean>("bookmarks.sidebar.hidePosition", false));
-
     function toggleSideBarWelcomeVisibility() {
         vscode.commands.executeCommand("setContext", "bookmarks.isHidingWelcome",
             vscode.workspace.getConfiguration("bookmarks").get("sideBar.hideWelcome", false)
         );
-    }
-
-    function toggleSidebarPositionVisibility(visible: boolean) {
-        vscode.commands.executeCommand("setContext", "bookmarks.isHidingPosition", !visible);
-        Container.context.globalState.update("bookmarks.sidebar.hidePosition", !visible);
-        bookmarkProvider.refresh();
-    }
-
-    const viewAsList = Container.context.globalState.get<boolean>("viewAsList", false);
-    vscode.commands.executeCommand("setContext", "bookmarks.viewAsList", viewAsList);
-    vscode.commands.registerCommand("_bookmarks.viewAsTree#sideBar", () => toggleViewAs(ViewAs.VIEW_AS_TREE));
-    vscode.commands.registerCommand("_bookmarks.viewAsList#sideBar", () => toggleViewAs(ViewAs.VIEW_AS_LIST));
-    function toggleViewAs(view: ViewAs) {
-        if (view === ViewAs.VIEW_AS_LIST) {
-            vscode.commands.executeCommand("setContext", "bookmarks.viewAsList", true);
-        } else {
-            vscode.commands.executeCommand("setContext", "bookmarks.viewAsList", false);
-        }
-        Container.context.globalState.update("viewAsList", view === ViewAs.VIEW_AS_LIST);
-        bookmarkProvider.refresh();
     }
 
     vscode.window.onDidChangeActiveTextEditor(editor => {
@@ -333,12 +307,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
     registerGutterCommands(toggle, toggleLabeled);
 
-    vscode.commands.registerCommand("bookmarks.refresh", () => {
+    vscode.commands.registerCommand("bookmarks.refresh", async () => {
         bookmarkProvider.refresh();
+        await vscode.commands.executeCommand("bookmarksAI.refreshProjectIndex", false);
     });
 
     vscode.commands.registerCommand("_bookmarks.search#sideBar", () => {
-        listFromAllFiles();
+        filterBookmarksTree();
     });
 
     vscode.commands.registerCommand("_bookmarks.addBookmark#sideBar", async () => {
@@ -413,8 +388,6 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
     vscode.commands.registerCommand("bookmarks.clear", () => clear("commandPalette"));
-    vscode.commands.registerCommand("bookmarks.clearFromAllFiles", () => clearFromAllFiles());
-    vscode.commands.registerCommand("_bookmarks.clearFromAllFiles#sideBar", () => clearFromAllFiles());
     vscode.commands.registerCommand("bookmarks.selectLines", () => selectBookmarkedLines(activeController));
     vscode.commands.registerCommand("bookmarks.expandSelectionToNext", () => expandSelectionToNextBookmark(activeController, Directions.Forward));
     vscode.commands.registerCommand("bookmarks.expandSelectionToPrevious", () => expandSelectionToNextBookmark(activeController, Directions.Backward));
@@ -579,6 +552,26 @@ export async function activate(context: vscode.ExtensionContext) {
         });
     }
 
+    async function filterBookmarksTree(): Promise<void> {
+        const filterText = await vscode.window.showInputBox({
+            prompt: vscode.l10n.t("Filter Bookmarks tree"),
+            placeHolder: vscode.l10n.t("Type words to filter the tree. All words must match."),
+            value: bookmarkProvider.getFilterText()
+        });
+
+        if (typeof filterText === "undefined") {
+            return;
+        }
+
+        bookmarkProvider.setFilter(filterText);
+        if (filterText.trim().length === 0) {
+            vscode.window.showInformationMessage(vscode.l10n.t("Bookmarks tree filter cleared"));
+            return;
+        }
+
+        vscode.window.showInformationMessage(vscode.l10n.t("Bookmarks tree filtered by: {0}", filterText.trim()));
+    }
+
     async function shouldConfirmClear(source: "commandPalette" | "sideBar"): Promise<boolean> {
         const confirmClearSetting = vscode.workspace.getConfiguration("bookmarks").get<string>("confirmClear", "never");
         
@@ -622,40 +615,6 @@ export async function activate(context: vscode.ExtensionContext) {
         }
 
         activeController.clear();
-        saveWorkspaceState();
-        updateDecorations();
-    }
-
-    async function clearFromAllFiles() {
-
-        const controller = await pickController(controllers, activeController);
-        if (!controller) {
-            return;
-        }
-
-        // Show confirmation dialog for clearing all files
-        const confirmClearSetting = vscode.workspace.getConfiguration("bookmarks").get<string>("confirmClear", "never");
-        
-        if (confirmClearSetting !== "never") {
-            // Show confirmation unless set to "never" (sideBar and commandPalette settings don't apply here since this is always from command palette)
-            if (confirmClearSetting === "always" || confirmClearSetting === "commandPalette") {
-                const message = vscode.l10n.t("Are you sure you want to clear all bookmarks from all files?");
-                const clearButton = vscode.l10n.t("Clear");
-                
-                const result = await vscode.window.showWarningMessage(
-                    message,
-                    { modal: true },
-                    clearButton
-                );
-                
-                if (result !== clearButton) {
-                    return;
-                }
-            }
-        }
-
-        controller.clearAll();
-
         saveWorkspaceState();
         updateDecorations();
     }

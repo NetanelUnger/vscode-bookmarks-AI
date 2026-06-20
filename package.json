@@ -62,11 +62,6 @@
                 {
                     "id": "bookmarksExplorer",
                     "name": "%bookmarks.views.Explorer.name%"
-                },
-                {
-                    "id": "bookmarksHelpAndFeedback",
-                    "name": "%bookmarks.views.HelpAndFeedback.name%",
-                    "visibility": "collapsed"
                 }
             ]
         },
@@ -154,28 +149,8 @@
                 "icon": "$(refresh)"
             },
             {
-                "command": "_bookmarks.viewAsTree#sideBar",
-                "title": "%bookmarks.commands.viewAsTree#sideBar.title%",
-                "icon": "$(list-tree)",
-                "enablement": "bookmarks.viewAsList"
-            },
-            {
-                "command": "_bookmarks.viewAsList#sideBar",
-                "title": "%bookmarks.commands.viewAsList#sideBar.title%",
-                "icon": "$(list-flat)",
-                "enablement": "!bookmarks.viewAsList"
-            },
-            {
                 "command": "bookmarks.openSettings",
                 "title": "%bookmarks.commands.openSettings.title%"
-            },
-            {
-                "command": "_bookmarks.sidebar.hidePosition",
-                "title": "%bookmarks.commands.hidePosition.title%"
-            },
-            {
-                "command": "_bookmarks.sidebar.showPosition",
-                "title": "%bookmarks.commands.showPosition.title%"
             },
             {
                 "command": "bookmarks.clear",
@@ -215,16 +190,6 @@
                 "category": "%bookmarks.commands.category.bookmarks%"
             },
             {
-                "command": "bookmarks.clearFromAllFiles",
-                "title": "%bookmarks.commands.clearFromAllFiles.title%",
-                "category": "%bookmarks.commands.category.bookmarks%"
-            },
-            {
-                "command": "_bookmarks.clearFromAllFiles#sideBar",
-                "title": "%bookmarks.commands.clearFromAllFiles#sideBar.title%",
-                "icon": "$(clear-all)"
-            },
-            {
                 "command": "bookmarks.whatsNew",
                 "title": "%bookmarks.commands.whatsNew.title%",
                 "category": "%bookmarks.commands.category.bookmarks%"
@@ -250,6 +215,68 @@
                 "command": "bookmarks.export",
                 "title": "%bookmarks.commands.export.title%",
                 "category": "%bookmarks.commands.category.bookmarks%"
+            },
+            {
+                "command": "bookmarksAI.refreshProjectIndex",
+                "title": "%bookmarksAI.commands.refreshProjectIndex.title%",
+                "category": "%bookmarksAI.commands.category%",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "bookmarksAI.showReferencesForCurrentLine",
+                "title": "%bookmarksAI.commands.showReferencesForCurrentLine.title%",
+                "category": "%bookmarksAI.commands.category%"
+            },
+            {
+                "command": "bookmarksAI.addReferenceToCurrentLocation",
+                "title": "%bookmarksAI.commands.addReferenceToCurrentLocation.title%",
+                "category": "%bookmarksAI.commands.category%"
+            },
+            {
+                "command": "bookmarksAI.removeReference",
+                "title": "%bookmarksAI.commands.removeReference.title%",
+                "category": "%bookmarksAI.commands.category%"
+            },
+            {
+                "command": "bookmarksAI.openBookmarksJson",
+                "title": "%bookmarksAI.commands.openBookmarksJson.title%",
+                "category": "%bookmarksAI.commands.category%",
+                "icon": "$(json)"
+            },
+            {
+                "command": "bookmarksAI.openBookmarkGuide",
+                "title": "%bookmarksAI.commands.openBookmarkGuide.title%",
+                "category": "%bookmarksAI.commands.category%",
+                "icon": "$(markdown)"
+            },
+            {
+                "command": "bookmarksAI.validateProjectReferences",
+                "title": "%bookmarksAI.commands.validateProjectReferences.title%",
+                "category": "%bookmarksAI.commands.category%",
+                "icon": "$(checklist)"
+            },
+            {
+                "command": "bookmarksAI.copyReferencePath",
+                "title": "%bookmarksAI.commands.copyReferencePath.title%",
+                "category": "%bookmarksAI.commands.category%",
+                "icon": "$(copy)"
+            },
+            {
+                "command": "bookmarksAI.agentFillBookmarks",
+                "title": "%bookmarksAI.commands.agentFillBookmarks.title%",
+                "category": "%bookmarksAI.commands.category%",
+                "icon": "$(hubot)"
+            },
+            {
+                "command": "bookmarksAI.agentScanCode",
+                "title": "%bookmarksAI.commands.agentScanCode.title%",
+                "category": "%bookmarksAI.commands.category%",
+                "icon": "$(hubot)"
+            },
+            {
+                "command": "_bookmarksAI.revealLocation",
+                "title": "%bookmarksAI.commands.revealLocation.title%",
+                "category": "%bookmarksAI.commands.category%"
             }
         ],
         "menus": {
@@ -271,27 +298,7 @@
                     "when": "false"
                 },
                 {
-                    "command": "_bookmarks.clearFromAllFiles#sideBar",
-                    "when": "false"
-                },
-                {
-                    "command": "_bookmarks.viewAsTree#sideBar",
-                    "when": "false"
-                },
-                {
-                    "command": "_bookmarks.viewAsList#sideBar",
-                    "when": "false"
-                },
-                {
                     "command": "bookmarks.openSettings",
-                    "when": "false"
-                },
-                {
-                    "command": "_bookmarks.sidebar.hidePosition",
-                    "when": "false"
-                },
-                {
-                    "command": "_bookmarks.sidebar.showPosition",
                     "when": "false"
                 },
                 {
@@ -328,6 +335,10 @@
                 },
                 {
                     "command": "_bookmarks.openSideBar",
+                    "when": "false"
+                },
+                {
+                    "command": "_bookmarksAI.revealLocation",
                     "when": "false"
                 }
             ],
@@ -372,44 +383,34 @@
                     "group": "navigation@7"
                 },
                 {
+                    "submenu": "bookmarksAI.actions",
+                    "when": "view == bookmarksExplorer",
+                    "group": "navigation@8"
+                },
+                {
                     "command": "bookmarks.refresh",
                     "when": "view == bookmarksExplorer",
                     "group": "navigation@10"
                 },
                 {
-                    "command": "_bookmarks.clearFromAllFiles#sideBar",
-                    "when": "view == bookmarksExplorer",
-                    "group": "navigation@11"
-                },
-                {
-                    "command": "_bookmarks.viewAsList#sideBar",
-                    "when": "view == bookmarksExplorer && !bookmarks.viewAsList",
-                    "group": "navigation@10"
-                },
-                {
-                    "command": "_bookmarks.viewAsTree#sideBar",
-                    "when": "view == bookmarksExplorer && bookmarks.viewAsList",
-                    "group": "navigation@10"
-                },
-                {
-                    "submenu": "bookmarks.sideBar.title",
-                    "when": "view == bookmarksExplorer",
-                    "group": "1_bookmarks"
-                },
-                {
-                    "command": "_bookmarks.sidebar.hidePosition",
-                    "when": "view == bookmarksExplorer && !bookmarks.isHidingPosition",
-                    "group": "2_bookmarks"
-                },
-                {
-                    "command": "_bookmarks.sidebar.showPosition",
-                    "when": "view == bookmarksExplorer && bookmarks.isHidingPosition",
-                    "group": "2_bookmarks"
-                },
-                {
                     "command": "bookmarks.openSettings",
                     "when": "view == bookmarksExplorer",
                     "group": "3_bookmarks"
+                },
+                {
+                    "command": "bookmarksAI.openBookmarksJson",
+                    "when": "view == bookmarksExplorer",
+                    "group": "navigation@14"
+                },
+                {
+                    "command": "bookmarksAI.openBookmarkGuide",
+                    "when": "view == bookmarksExplorer",
+                    "group": "navigation@13"
+                },
+                {
+                    "command": "bookmarksAI.validateProjectReferences",
+                    "when": "view == bookmarksExplorer",
+                    "group": "navigation@15"
                 }
             ],
             "view/item/context": [
@@ -441,6 +442,11 @@
                     "command": "_bookmarks.editLabel",
                     "when": "view == bookmarksExplorer && viewItem == BookmarkNodeBookmark",
                     "group": "inline@1"
+                },
+                {
+                    "command": "bookmarksAI.copyReferencePath",
+                    "when": "view == bookmarksExplorer && viewItem == BookmarksAIReference",
+                    "group": "inline"
                 }
             ],
             "extension/context": [
@@ -486,14 +492,14 @@
                     "group": "bookmarks"
                 }
             ],
-            "bookmarks.sideBar.title": [
+            "bookmarksAI.actions": [
                 {
-                    "command": "_bookmarks.viewAsTree#sideBar",
-                    "group": "bookmarks#sideBar.view@1"
+                    "command": "bookmarksAI.agentFillBookmarks",
+                    "group": "navigation@1"
                 },
                 {
-                    "command": "_bookmarks.viewAsList#sideBar",
-                    "group": "bookmarks#sideBar.view@2"
+                    "command": "bookmarksAI.agentScanCode",
+                    "group": "navigation@2"
                 }
             ]
         },
@@ -507,8 +513,9 @@
                 "label": "%bookmarks.editor.title.label%"
             },
             {
-                "id": "bookmarks.sideBar.title",
-                "label": "View & Sort"
+                "id": "bookmarksAI.actions",
+                "label": "%bookmarksAI.submenus.actions.label%",
+                "icon": "$(hubot)"
             }
         ],
         "configuration": {
@@ -606,6 +613,25 @@
                     "type": "boolean",
                     "default": false,
                     "description": "%bookmarks.configuration.sidebar.hideWelcome.description%"
+                },
+                "bookmarks.references.ignoredFolders": {
+                    "type": "array",
+                    "default": [
+                        ".git",
+                        "node_modules",
+                        "build",
+                        "out",
+                        "dist",
+                        "Debug",
+                        "Release",
+                        ".vs",
+                        "vendor",
+                        "third_party"
+                    ],
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "%bookmarksAI.configuration.references.ignoredFolders.description%"
                 },
                 "bookmarks.multicursor.toggleMode": {
                     "type": "string",
@@ -894,7 +920,6 @@
         "path-browserify": "^1.0.1",
         "vscode-ext-codicons": "^1.0.0",
         "vscode-ext-decoration": "1.1.0",
-        "vscode-ext-help-and-feedback-view": "^1.0.1",
         "vscode-ext-selection": "1.0.0"
     },
     "devDependencies": {

@@ -9,28 +9,34 @@ import { Controller } from "../core/controller";
 import { parsePosition, Point } from "./parser";
 import { codicons } from "vscode-ext-codicons";
 import { listBookmarks } from "../core/operations";
-import { Container } from "../core/container";
 import { FileNode } from "./fileNode";
 import { BookmarkNode, BookmarkPreview } from "./bookmarkNode";
 import { WorkspaceNode } from "./workspaceNode";
 import { BookmarkNodeKind } from "./nodes";
 import { BadgeConfig } from "../core/constants";
+import { ReferenceTreeProvider } from "../views/referenceTreeProvider";
+import { ReferenceTreeItem, ReferenceTreeNode } from "../views/referenceTreeItem";
 
-export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkNode | WorkspaceNode | FileNode> {
+type BookmarkExplorerNode = BookmarkNode | WorkspaceNode | FileNode | ReferenceTreeItem;
 
-    private _onDidChangeTreeData: vscode.EventEmitter<BookmarkNode | void> = new vscode.EventEmitter<BookmarkNode | void>();
-    public readonly onDidChangeTreeData: vscode.Event<BookmarkNode | void> = this._onDidChangeTreeData.event;
+export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkExplorerNode> {
+
+    private _onDidChangeTreeData: vscode.EventEmitter<BookmarkExplorerNode | void> = new vscode.EventEmitter<BookmarkExplorerNode | void>();
+    public readonly onDidChangeTreeData: vscode.Event<BookmarkExplorerNode | void> = this._onDidChangeTreeData.event;
 
     private tree: BookmarkNode[] = [];
 
     private collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+    private filterText = "";
+    private filterTerms: string[] = [];
 
-    constructor(private controllers: Controller[]) {
+    constructor(private controllers: Controller[], private referenceTreeProvider?: ReferenceTreeProvider) {
 
         if (vscode.workspace.getConfiguration("bookmarks.sideBar").get<boolean>("expanded", false)) {
             this.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
         }
 
+        this.referenceTreeProvider?.onDidChangeTreeData(() => this.refresh());
         this.registerControllerListeners(controllers);
     }
 
@@ -174,12 +180,28 @@ export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkNode | 
         this._onDidChangeTreeData.fire();
     }
 
-    public getTreeItem(element: BookmarkNode): vscode.TreeItem {
+    public setFilter(filterText: string): void {
+        this.filterText = filterText.trim();
+        this.filterTerms = normalizeFilterTerms(this.filterText);
+        this.refresh();
+    }
+
+    public getFilterText(): string {
+        return this.filterText;
+    }
+
+    public getTreeItem(element: BookmarkExplorerNode): vscode.TreeItem {
         return element;
     }
 
     // very much based in `listFromAllFiles` command
-    public getChildren(element?: FileNode | WorkspaceNode): Thenable<BookmarkNode[] | WorkspaceNode[] | FileNode[]> {
+    public getChildren(element?: FileNode | WorkspaceNode | ReferenceTreeItem): Thenable<BookmarkExplorerNode[]> {
+
+        if (element instanceof ReferenceTreeItem) {
+            return this.referenceTreeProvider
+                ? this.referenceTreeProvider.getChildren(element)
+                : Promise.resolve([]);
+        }
 
         // no bookmark
         // let totalBookmarkCount = 0;
@@ -192,7 +214,7 @@ export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkNode | 
 
         if (!someFileHasBookmark) {
             this.tree = [];
-            return Promise.resolve([]);
+            return this.getReferenceRootChildren();
         }
 
         // loop !!!
@@ -243,9 +265,12 @@ export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkNode | 
                                         }
                                     }
 
-                                    const itemPath = path.basename(bb.path);
-                                    const bn: FileNode = new FileNode(itemPath, removeRelativePathFromFile(bb.path), this.collapsibleState, BookmarkNodeKind.NODE_FILE, bb, books);
-                                    lll.push(bn);
+                                    const filteredBooks = this.filterBooks(bb.path, books);
+                                    if (this.shouldIncludeFile(bb.path, filteredBooks)) {
+                                        const itemPath = path.basename(bb.path);
+                                        const bn: FileNode = new FileNode(itemPath, removeRelativePathFromFile(bb.path), this.collapsibleState, BookmarkNodeKind.NODE_FILE, bb, filteredBooks);
+                                        lll.push(bn);
+                                    }
                                     // this.tree.push(bn);
                                 }
                             }
@@ -261,10 +286,9 @@ export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkNode | 
 
                     const ne = <BookmarkNode>element;
 
-                    const hidePosition = Container.context.globalState.get<boolean>("bookmarks.sidebar.hidePosition", false);
-
-                    for (const bbb of ne.books) {
-                        ll.push(new BookmarkNode(bbb.preview, !hidePosition ? `(Ln ${bbb.line}, Col ${bbb.column})` : undefined, vscode.TreeItemCollapsibleState.None, BookmarkNodeKind.NODE_BOOKMARK, null, [], {
+                    const filteredBooks = this.filterBooks(ne.bookmark.path, ne.books ?? []);
+                    for (const bbb of filteredBooks) {
+                        ll.push(new BookmarkNode(bbb.preview, `(Ln ${bbb.line}, Col ${bbb.column})`, vscode.TreeItemCollapsibleState.None, BookmarkNodeKind.NODE_BOOKMARK, null, [], {
                             command: "_bookmarks.jumpTo",
                             title: "",
                             arguments: [ bbb.file, bbb.line, bbb.column, bbb.uri ],
@@ -277,18 +301,17 @@ export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkNode | 
                 }
             } else { // ROOT
 
-                //
-                const viewAsList = Container.context.globalState.get<boolean>("viewAsList", false);
-
-                // has more than one controller/worskpace and View As TREE, just loop through the controllers and returns its workspaces
-                if (this.controllers.length > 1 && !viewAsList) {
+                // has more than one controller/worskpace, just loop through the controllers and returns its workspaces
+                if (this.controllers.length > 1) {
                     const workspaces = [];
                     for (const controller of this.controllers) {
                         const wn: WorkspaceNode = new WorkspaceNode(controller.workspaceFolder.name, controller.workspaceFolder,
                             this.collapsibleState, BookmarkNodeKind.NODE_WORKSPACE_FOLDER, [], controller);
                         workspaces.push(wn);
                     }
-                    resolve(workspaces);
+                    this.getReferenceRootChildren().then(referenceNodes => {
+                        resolve([ ...workspaces, ...referenceNodes ]);
+                    });
                     return;
                 }
 
@@ -339,36 +362,112 @@ export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkNode | 
                                         }
                                     }
 
-                                    const itemPath = path.basename(bb.path);
-                                    const bn: FileNode = new FileNode(itemPath, removeRelativePathFromFile(bb.path), this.collapsibleState, BookmarkNodeKind.NODE_FILE, bb, books);
-                                    lll.push(bn);
+                                    const filteredBooks = this.filterBooks(bb.path, books);
+                                    if (this.shouldIncludeFile(bb.path, filteredBooks)) {
+                                        const itemPath = path.basename(bb.path);
+                                        const bn: FileNode = new FileNode(itemPath, removeRelativePathFromFile(bb.path), this.collapsibleState, BookmarkNodeKind.NODE_FILE, bb, filteredBooks);
+                                        lll.push(bn);
+                                    }
                                     // this.tree.push(bn);
                                 }
                             }
                         }
 
-                        // choose the view
-                        if (viewAsList) {
-                            const hidePosition = Container.context.globalState.get<boolean>("bookmarks.sidebar.hidePosition", false);
-                            const bookmarkNodes: BookmarkNode[] = [];
-                            lll.forEach(FileNode => {
-                                for (const bbb of FileNode.books) {
-                                    bookmarkNodes.push(new BookmarkNode(bbb.preview, !hidePosition ? `(Ln ${bbb.line}, Col ${bbb.column})` : undefined, vscode.TreeItemCollapsibleState.None, BookmarkNodeKind.NODE_BOOKMARK, null, [], {
-                                        command: "_bookmarks.jumpTo",
-                                        title: "",
-                                        arguments: [ bbb.file, bbb.line, bbb.column, bbb.uri ],
-                                    }));
-                                }
-                            });
-                            resolve(bookmarkNodes);
-                        }
-
-                        // viewAsTree returns FileNode[]
-                        resolve(lll);
+                        this.getReferenceRootChildren().then(referenceNodes => {
+                            resolve([ ...lll, ...referenceNodes ]);
+                        });
                     }
                 );
             }
         });
+    }
+
+    private getReferenceRootChildren(): Thenable<ReferenceTreeItem[]> {
+        if (!this.referenceTreeProvider) {
+            return Promise.resolve([]);
+        }
+
+        return this.referenceTreeProvider.getChildren()
+            .then(children => this.filterReferenceItems(children));
+    }
+
+    private filterBooks(filePath: string, books: BookmarkPreview[]): BookmarkPreview[] {
+        if (!this.hasFilter()) {
+            return books;
+        }
+
+        const fileText = removeRelativePathFromFile(filePath) + " " + path.basename(filePath) + " " + filePath;
+        if (this.matchesFilter(fileText + " " + books.map(book => this.getBookSearchText(book)).join(" "))) {
+            return books;
+        }
+
+        return books.filter(book => this.matchesFilter(fileText + " " + this.getBookSearchText(book)));
+    }
+
+    private shouldIncludeFile(filePath: string, books: BookmarkPreview[]): boolean {
+        if (!this.hasFilter()) {
+            return true;
+        }
+
+        if (books.length > 0) {
+            return true;
+        }
+
+        return this.matchesFilter(filePath);
+    }
+
+    private getBookSearchText(book: BookmarkPreview): string {
+        return [
+            book.file,
+            book.preview,
+            `line ${book.line}`,
+            `column ${book.column}`
+        ].join(" ");
+    }
+
+    private filterReferenceItems(items: ReferenceTreeItem[]): ReferenceTreeItem[] {
+        if (!this.hasFilter()) {
+            return items;
+        }
+
+        return items
+            .map(item => this.filterReferenceItem(item, ""))
+            .filter((item): item is ReferenceTreeItem => !!item);
+    }
+
+    private filterReferenceItem(item: ReferenceTreeItem, ancestorText: string): ReferenceTreeItem | undefined {
+        const nodeText = `${ancestorText} ${getReferenceNodeSearchText(item.node)}`;
+        const selfMatches = this.matchesFilter(nodeText);
+
+        if (!("children" in item.node)) {
+            return selfMatches ? item : undefined;
+        }
+
+        if (selfMatches) {
+            return item;
+        }
+
+        const filteredChildren = item.node.children
+            .map(child => this.filterReferenceItem(new ReferenceTreeItem(child), nodeText))
+            .filter((child): child is ReferenceTreeItem => !!child);
+
+        if (filteredChildren.length === 0) {
+            return undefined;
+        }
+
+        return new ReferenceTreeItem({
+            ...item.node,
+            children: filteredChildren.map(child => child.node)
+        } as ReferenceTreeNode);
+    }
+
+    private hasFilter(): boolean {
+        return this.filterTerms.length > 0;
+    }
+
+    private matchesFilter(text: string): boolean {
+        const normalizedText = text.toLocaleLowerCase();
+        return this.filterTerms.every(term => normalizedText.includes(term));
     }
 
 }
@@ -381,14 +480,14 @@ function removeRelativePathFromFile(aPath: string): string {
 
 export class BookmarksExplorer {
 
-    private bookmarksExplorer: vscode.TreeView<BookmarkNode | WorkspaceNode | FileNode>;
+    private bookmarksExplorer: vscode.TreeView<BookmarkExplorerNode>;
     private treeDataProvider: BookmarkProvider;
     private controllers: Controller[];
     private controllerListenerDisposables: vscode.Disposable[] = [];
 
-    constructor(controllers: Controller[]) {
+    constructor(controllers: Controller[], referenceTreeProvider?: ReferenceTreeProvider) {
         this.controllers = controllers;
-        this.treeDataProvider = new BookmarkProvider(controllers);
+        this.treeDataProvider = new BookmarkProvider(controllers, referenceTreeProvider);
         this.bookmarksExplorer = vscode.window.createTreeView("bookmarksExplorer", {
             treeDataProvider: this.treeDataProvider,
             showCollapseAll: true
@@ -479,4 +578,49 @@ export class BookmarksExplorer {
 
         this.updateBadge();
     }
+}
+
+function normalizeFilterTerms(filterText: string): string[] {
+    return filterText
+        .toLocaleLowerCase()
+        .split(/\s+/)
+        .map(term => term.trim())
+        .filter(term => term.length > 0);
+}
+
+function getReferenceNodeSearchText(node: ReferenceTreeNode): string {
+    if (node.kind === "location") {
+        return [
+            node.label,
+            node.location.file,
+            node.location.label,
+            node.location.symbol ?? "",
+            node.location.source,
+            node.location.refs.join(" "),
+            node.location.workspaceFolder.name,
+            `line ${node.location.line}`,
+            `column ${node.location.column}`
+        ].join(" ");
+    }
+
+    if (node.kind === "problem") {
+        return [
+            node.label,
+            node.problem.message,
+            node.problem.file ?? "",
+            node.problem.source,
+            node.problem.workspaceFolder?.name ?? "",
+            node.problem.line ? `line ${node.problem.line}` : "",
+            node.problem.column ? `column ${node.problem.column}` : ""
+        ].join(" ");
+    }
+
+    if (node.kind === "folder") {
+        return [
+            node.label,
+            node.referenceId ?? ""
+        ].join(" ");
+    }
+
+    return node.label;
 }
