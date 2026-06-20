@@ -88,6 +88,18 @@ Manual bookmarks and scanned reference annotations are persisted into `bookmarks
 
 For safety and privacy, Bookmarks AI treats source files as read-only. It scans source files for comments, but extension-owned writes are limited to bookmark metadata files such as `bookmarks.json`, `bookmark.md`, and the legacy `.vscode/bookmarks.json` storage file. Built-in AI prompts are opened locally for review instead of automatically sending code or prompts to an external chat service.
 
+# Download a VSIX build
+
+This repository includes a GitHub Actions workflow named **Package VSIX**. Run it manually from the repository **Actions** tab to build the extension as a single `.vsix` file.
+
+After the workflow finishes, download the `bookmarks-ai-vsix` artifact and install the `.vsix` in VS Code with:
+
+```bash
+code --install-extension path/to/bookmarks-ai.vsix
+```
+
+When a Git tag that starts with `v` is pushed, the same workflow also attaches the `.vsix` file to the GitHub release for that tag.
+
 # Features
 
 ## Available commands
