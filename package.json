@@ -144,6 +144,11 @@
                 "icon": "$(search)"
             },
             {
+                "command": "_bookmarks.clearSearch#sideBar",
+                "title": "%bookmarks.commands.clearSearch#sideBar.title%",
+                "icon": "$(search-stop)"
+            },
+            {
                 "command": "bookmarks.refresh",
                 "title": "%bookmarks.commands.refresh.title%",
                 "icon": "$(refresh)"
@@ -299,6 +304,10 @@
                     "when": "false"
                 },
                 {
+                    "command": "_bookmarks.clearSearch#sideBar",
+                    "when": "false"
+                },
+                {
                     "command": "bookmarks.refresh",
                     "when": "false"
                 },
@@ -388,7 +397,12 @@
                 },
                 {
                     "command": "_bookmarks.search#sideBar",
-                    "when": "view == bookmarksExplorer",
+                    "when": "view == bookmarksExplorer && !bookmarks.sideBar.isFiltering",
+                    "group": "navigation@7"
+                },
+                {
+                    "command": "_bookmarks.clearSearch#sideBar",
+                    "when": "view == bookmarksExplorer && bookmarks.sideBar.isFiltering",
                     "group": "navigation@7"
                 },
                 {

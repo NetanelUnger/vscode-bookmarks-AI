@@ -29,6 +29,7 @@ export class BookmarkNode extends TreeItem {
     ) {
         super(label, collapsibleState);
 
+        this.id = `bookmarks.bookmark.${bookmark?.uri?.toString() ?? fileFromPreview(books)}.${relativePath}`;
         this.description = relativePath;
         const iconFillColor = workspace.getConfiguration("bookmarks").get("gutterIconFillColor", DEFAULT_GUTTER_ICON_FILL_COLOR);
         const iconBorderColor = workspace.getConfiguration("bookmarks").get("gutterIconBorderColor", DEFAULT_GUTTER_ICON_BORDER_COLOR);
@@ -40,4 +41,8 @@ export class BookmarkNode extends TreeItem {
         this.iconPath = iconPath;
         this.contextValue = "BookmarkNodeBookmark";
     }
+}
+
+function fileFromPreview(books?: BookmarkPreview[]): string {
+    return books && books.length > 0 ? books[ 0 ].file : "";
 }

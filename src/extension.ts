@@ -193,6 +193,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const bookmarkExplorer = new BookmarksExplorer(controllers, bookmarksAIProvider);
     const bookmarkProvider = bookmarkExplorer.getProvider();
 
+    await vscode.commands.executeCommand("setContext", "bookmarks.sideBar.isFiltering", false);
     bookmarkExplorer.updateBadge();
 
     context.subscriptions.push(vscode.commands.registerCommand("bookmarks.openAll", () => bookmarkExplorer.openAll()));
@@ -316,6 +317,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand("_bookmarks.search#sideBar", () => {
         filterBookmarksTree();
+    });
+
+    vscode.commands.registerCommand("_bookmarks.clearSearch#sideBar", () => {
+        clearBookmarksTreeFilter();
     });
 
     vscode.commands.registerCommand("_bookmarks.addBookmark#sideBar", async () => {
@@ -555,6 +560,11 @@ export async function activate(context: vscode.ExtensionContext) {
     }
 
     async function filterBookmarksTree(): Promise<void> {
+        if (bookmarkProvider.hasActiveFilter()) {
+            await clearBookmarksTreeFilter();
+            return;
+        }
+
         const filterText = await vscode.window.showInputBox({
             prompt: vscode.l10n.t("Filter Bookmarks tree"),
             placeHolder: vscode.l10n.t("Type words to filter the tree. All words must match."),
@@ -566,12 +576,20 @@ export async function activate(context: vscode.ExtensionContext) {
         }
 
         bookmarkProvider.setFilter(filterText);
-        if (filterText.trim().length === 0) {
+        const isFiltering = filterText.trim().length > 0;
+        await vscode.commands.executeCommand("setContext", "bookmarks.sideBar.isFiltering", isFiltering);
+        if (!isFiltering) {
             vscode.window.showInformationMessage(vscode.l10n.t("Bookmarks tree filter cleared"));
             return;
         }
 
         vscode.window.showInformationMessage(vscode.l10n.t("Bookmarks tree filtered by: {0}", filterText.trim()));
+    }
+
+    async function clearBookmarksTreeFilter(): Promise<void> {
+        bookmarkProvider.setFilter("");
+        await vscode.commands.executeCommand("setContext", "bookmarks.sideBar.isFiltering", false);
+        vscode.window.showInformationMessage(vscode.l10n.t("Bookmarks tree filter cleared"));
     }
 
     async function shouldConfirmClear(source: "commandPalette" | "sideBar"): Promise<boolean> {

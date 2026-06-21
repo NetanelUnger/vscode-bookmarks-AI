@@ -21,6 +21,7 @@ export class FileNode extends TreeItem {
     ) {
         super(label, collapsibleState);
 
+        this.id = `bookmarks.file.${bookmark.uri?.toString() ?? bookmark.path}`;
         this.resourceUri = Uri.file(bookmark.path);
         this.description = relativePath;
         this.iconPath = ThemeIcon.File;

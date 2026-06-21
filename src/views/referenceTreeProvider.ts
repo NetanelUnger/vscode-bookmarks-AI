@@ -200,7 +200,7 @@ export class ReferenceTreeProvider implements vscode.TreeDataProvider<ReferenceT
 
     private buildUnclassifiedNodes(locations: ReferenceLocation[]): ReferenceTreeNode[] {
         return locations
-            .filter(location => location.refs.length === 0 && location.source !== "todo" && location.source !== "bug")
+            .filter(location => location.refs.length === 0 && location.source === "annotation")
             .map((location, index) => this.createLocationNode(location, `unclassified.${index}`));
     }
 

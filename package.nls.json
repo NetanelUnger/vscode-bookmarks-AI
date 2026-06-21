@@ -22,6 +22,7 @@
     "bookmarks.commands.openAll.title": "Open All",
     "bookmarks.commands.addBookmark#sideBar.title": "Add Bookmark",
     "bookmarks.commands.search#sideBar.title": "Search",
+    "bookmarks.commands.clearSearch#sideBar.title": "Clear Search",
     "bookmarks.commands.openSettings.title": "Open Settings",
     "bookmarks.commands.clear.title": "Clear",
     "bookmarks.commands.clearFromFile.title": "Delete",
