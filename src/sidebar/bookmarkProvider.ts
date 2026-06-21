@@ -17,7 +17,30 @@ import { BadgeConfig } from "../core/constants";
 import { ReferenceTreeProvider } from "../views/referenceTreeProvider";
 import { ReferenceTreeItem, ReferenceTreeNode } from "../views/referenceTreeItem";
 
-type BookmarkExplorerNode = BookmarkNode | WorkspaceNode | FileNode | ReferenceTreeItem;
+type BookmarkExplorerNode = BookmarkNode | WorkspaceNode | FileNode | ReferenceTreeItem | BookmarkSectionNode | BookmarkMessageNode;
+
+class BookmarkSectionNode extends vscode.TreeItem {
+
+    constructor(
+        public readonly label: string,
+        public readonly children: BookmarkExplorerNode[]
+    ) {
+        super(label, children.length > 0 ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None);
+        this.id = "bookmarks.original.section";
+        this.iconPath = new vscode.ThemeIcon("bookmark");
+        this.contextValue = "BookmarkNodeSection";
+    }
+}
+
+class BookmarkMessageNode extends vscode.TreeItem {
+
+    constructor(label: string) {
+        super(label, vscode.TreeItemCollapsibleState.None);
+        this.id = "bookmarks.message.searchResultsNotFound";
+        this.iconPath = new vscode.ThemeIcon("search-stop");
+        this.contextValue = "BookmarkNodeMessage";
+    }
+}
 
 export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkExplorerNode> {
 
@@ -190,12 +213,60 @@ export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkExplore
         return this.filterText;
     }
 
+    public hasActiveFilter(): boolean {
+        return this.hasFilter();
+    }
+
     public getTreeItem(element: BookmarkExplorerNode): vscode.TreeItem {
         return element;
     }
 
     // very much based in `listFromAllFiles` command
-    public getChildren(element?: FileNode | WorkspaceNode | ReferenceTreeItem): Thenable<BookmarkExplorerNode[]> {
+    public getParent(element: BookmarkExplorerNode): vscode.ProviderResult<BookmarkExplorerNode> {
+        if (element instanceof BookmarkMessageNode) {
+            return undefined;
+        }
+
+        if (element instanceof WorkspaceNode) {
+            return new BookmarkSectionNode(vscode.l10n.t("Original Bookmarks"), []);
+        }
+
+        if (element instanceof FileNode) {
+            if (this.controllers.length > 1) {
+                const controller = this.controllers.find(candidate => candidate.files.includes(element.bookmark));
+                if (controller) {
+                    return new WorkspaceNode(controller.workspaceFolder.name, controller.workspaceFolder,
+                        this.collapsibleState, BookmarkNodeKind.NODE_WORKSPACE_FOLDER, [], controller);
+                }
+            }
+
+            return new BookmarkSectionNode(vscode.l10n.t("Original Bookmarks"), []);
+        }
+
+        if (element instanceof BookmarkNode) {
+            const bookmarkUri = element.command?.arguments?.[ 3 ] as vscode.Uri | undefined;
+            const bookmarkFile = bookmarkUri
+                ? this.controllers.flatMap(controller => controller.files).find(file => file.uri?.toString() === bookmarkUri.toString())
+                : undefined;
+
+            if (bookmarkFile) {
+                const itemPath = path.basename(bookmarkFile.path);
+                return new FileNode(itemPath, removeRelativePathFromFile(bookmarkFile.path), this.collapsibleState, BookmarkNodeKind.NODE_FILE, bookmarkFile, []);
+            }
+        }
+
+        return this.getChildren().then(children => findParent(children, element));
+    }
+
+    public getChildren(element?: BookmarkExplorerNode): Thenable<BookmarkExplorerNode[]> {
+
+        if (element instanceof BookmarkMessageNode) {
+            return Promise.resolve([]);
+        }
+
+        if (element instanceof BookmarkSectionNode) {
+            return Promise.resolve(element.children);
+        }
 
         if (element instanceof ReferenceTreeItem) {
             return this.referenceTreeProvider
@@ -214,7 +285,7 @@ export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkExplore
 
         if (!someFileHasBookmark) {
             this.tree = [];
-            return this.getReferenceRootChildren();
+            return this.withSearchFallback(this.getReferenceRootChildren());
         }
 
         // loop !!!
@@ -310,7 +381,8 @@ export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkExplore
                         workspaces.push(wn);
                     }
                     this.getReferenceRootChildren().then(referenceNodes => {
-                        resolve([ ...workspaces, ...referenceNodes ]);
+                        const originalSection = new BookmarkSectionNode(vscode.l10n.t("Original Bookmarks"), workspaces);
+                        resolve(this.applySearchFallback([ originalSection, ...referenceNodes ]));
                     });
                     return;
                 }
@@ -374,12 +446,29 @@ export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkExplore
                         }
 
                         this.getReferenceRootChildren().then(referenceNodes => {
-                            resolve([ ...lll, ...referenceNodes ]);
+                            const originalSection = new BookmarkSectionNode(vscode.l10n.t("Original Bookmarks"), lll);
+                            resolve(this.applySearchFallback([ originalSection, ...referenceNodes ]));
                         });
                     }
                 );
             }
         });
+    }
+
+    private withSearchFallback(children: Thenable<BookmarkExplorerNode[]>): Thenable<BookmarkExplorerNode[]> {
+        return children.then(items => this.applySearchFallback(items));
+    }
+
+    private applySearchFallback(items: BookmarkExplorerNode[]): BookmarkExplorerNode[] {
+        const visibleItems = this.hasFilter()
+            ? items.filter(item => !(item instanceof BookmarkSectionNode) || item.children.length > 0)
+            : items;
+
+        if (visibleItems.length === 0 && this.hasFilter()) {
+            return [ new BookmarkMessageNode(vscode.l10n.t("Search results was not found")) ];
+        }
+
+        return visibleItems;
     }
 
     private getReferenceRootChildren(): Thenable<ReferenceTreeItem[]> {
@@ -638,4 +727,72 @@ function getReferenceNodeSearchText(node: ReferenceTreeNode): string {
     }
 
     return node.label;
+}
+
+function findParent(nodes: BookmarkExplorerNode[], target: BookmarkExplorerNode): BookmarkExplorerNode | undefined {
+    for (const node of nodes) {
+        if (isSameTreeNode(node, target)) {
+            return undefined;
+        }
+
+        const children = getCachedChildren(node);
+        if (!children) {
+            continue;
+        }
+
+        if (children.some(child => isSameTreeNode(child, target))) {
+            return node;
+        }
+
+        const parent = findParent(children, target);
+        if (parent) {
+            return parent;
+        }
+    }
+
+    return undefined;
+}
+
+function getCachedChildren(node: BookmarkExplorerNode): BookmarkExplorerNode[] | undefined {
+    if (node instanceof BookmarkSectionNode) {
+        return node.children;
+    }
+
+    if (node instanceof ReferenceTreeItem && "children" in node.node) {
+        return node.node.children.map(child => new ReferenceTreeItem(child));
+    }
+
+    if (node instanceof WorkspaceNode) {
+        return node.files;
+    }
+
+    if ((node instanceof FileNode || node instanceof BookmarkNode) && node.books) {
+        return node.books.map(bookmark => new BookmarkNode(
+            bookmark.preview,
+            `(Ln ${bookmark.line}, Col ${bookmark.column})`,
+            vscode.TreeItemCollapsibleState.None,
+            BookmarkNodeKind.NODE_BOOKMARK,
+            null,
+            [],
+            {
+                command: "_bookmarks.jumpTo",
+                title: "",
+                arguments: [ bookmark.file, bookmark.line, bookmark.column, bookmark.uri ],
+            }
+        ));
+    }
+
+    return undefined;
+}
+
+function isSameTreeNode(left: BookmarkExplorerNode, right: BookmarkExplorerNode): boolean {
+    if (left instanceof ReferenceTreeItem && right instanceof ReferenceTreeItem) {
+        return left.node.id === right.node.id;
+    }
+
+    if (left.id && right.id) {
+        return left.id === right.id;
+    }
+
+    return left === right;
 }

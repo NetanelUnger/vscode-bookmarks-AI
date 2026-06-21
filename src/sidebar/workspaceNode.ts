@@ -20,6 +20,7 @@ export class WorkspaceNode extends TreeItem {
         public readonly controller: Controller
     ) {
         super(label, collapsibleState);
+        this.id = `bookmarks.workspace.${workspaceFolder.uri.toString()}`;
         this.iconPath = ThemeIcons.root_folder;
         this.contextValue = "WorkspaceNode";
     }

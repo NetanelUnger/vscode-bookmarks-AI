@@ -22,6 +22,7 @@
     "bookmarks.commands.refresh.title": "Verversen",
     "bookmarks.commands.addBookmark#sideBar.title": "Bladwijzer toevoegen",
     "bookmarks.commands.search#sideBar.title": "Zoeken",
+    "bookmarks.commands.clearSearch#sideBar.title": "Clear Search",
     "bookmarks.commands.viewAsTree#sideBar.title": "Weergeven als boom",
     "bookmarks.commands.viewAsList#sideBar.title": "Weergeven als lijst",
     "bookmarks.commands.openSettings.title": "Instellingen openen",

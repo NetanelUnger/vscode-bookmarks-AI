@@ -22,6 +22,7 @@
     "bookmarks.commands.refresh.title": "Обновить",
     "bookmarks.commands.addBookmark#sideBar.title": "Добавить закладку",
     "bookmarks.commands.search#sideBar.title": "Поиск",
+    "bookmarks.commands.clearSearch#sideBar.title": "Clear Search",
     "bookmarks.commands.viewAsTree#sideBar.title": "Просмотреть как дерево",
     "bookmarks.commands.viewAsList#sideBar.title": "Просмотреть как список",
     "bookmarks.commands.openSettings.title": "Открыть настройки",

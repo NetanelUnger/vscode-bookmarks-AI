@@ -22,6 +22,7 @@
     "bookmarks.commands.refresh.title": "Aktualisieren",
     "bookmarks.commands.addBookmark#sideBar.title": "Lesezeichen hinzufügen",
     "bookmarks.commands.search#sideBar.title": "Suchen",
+    "bookmarks.commands.clearSearch#sideBar.title": "Clear Search",
     "bookmarks.commands.viewAsTree#sideBar.title": "Als Baum anzeigen",
     "bookmarks.commands.viewAsList#sideBar.title": "Als Liste anzeigen",
     "bookmarks.commands.openSettings.title": "Einstellungen öffnen",
