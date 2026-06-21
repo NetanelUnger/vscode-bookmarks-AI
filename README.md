@@ -90,9 +90,9 @@ For safety and privacy, Bookmarks AI treats source files as read-only. It scans 
 
 # Download a VSIX build
 
-This repository includes a GitHub Actions workflow named **Package VSIX**. Run it manually from the repository **Actions** tab to build the extension as a single `.vsix` file.
+This repository includes a GitHub Actions workflow named **Package VSIX**. Run it manually from the repository **Actions** tab to build the extension as a single `.vsix` file. Pushes to `main` also publish the generated `.vsix` to the `latest` prerelease on the repository Releases page.
 
-After the workflow finishes, download the `bookmarks-ai-vsix` artifact and install the `.vsix` in VS Code with:
+After the workflow finishes, download the `bookmarks-ai-vsix` artifact or the newest asset from the `latest` prerelease, then install the `.vsix` in VS Code with:
 
 ```bash
 code --install-extension path/to/bookmarks-ai.vsix

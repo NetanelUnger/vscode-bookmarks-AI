@@ -7,6 +7,7 @@ import { workspace, window, WorkspaceFolder, l10n } from "vscode";
 import { Container } from "../core/container";
 import { appendPath, createDirectoryUri, deleteFileUri, readFileUri, uriExists, writeFileUri } from "../utils/fs";
 import { Controller } from "../core/controller";
+import { BookmarksJsonWriter } from "../bookmarksJson/bookmarksJsonWriter";
 
 function canSaveBookmarksInProject(): boolean {
     let saveBookmarksInProject: boolean = workspace.getConfiguration("bookmarks").get("saveBookmarksInProject", false);
@@ -51,6 +52,8 @@ export async function loadBookmarks(workspaceFolder: WorkspaceFolder): Promise<C
 }
 
 export function saveBookmarks(controller: Controller): void {
+    void new BookmarksJsonWriter().saveControllerBookmarks(controller);
+
     const saveBookmarksInProject: boolean = canSaveBookmarksInProject();
     
     if (saveBookmarksInProject) {

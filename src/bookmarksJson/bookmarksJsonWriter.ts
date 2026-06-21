@@ -10,6 +10,8 @@ import { BookmarksJsonBookmark, BookmarksJsonDocument, BookmarksJsonGroup } from
 import { getBookmarksJsonUri } from "./bookmarksJsonLoader";
 import { ReferenceLocation } from "../references/referenceModel";
 import { formatReferenceLeafTitle, normalizeReferenceId } from "../references/referenceParser";
+import { Controller } from "../core/controller";
+import { File } from "../core/file";
 import { writeFileUri } from "../utils/fs";
 
 const MANAGED_BOOKMARK_ID_PREFIX = "bookmarks-ai-";
@@ -22,6 +24,29 @@ interface WritableBookmarksJsonDocument {
 }
 
 export class BookmarksJsonWriter {
+
+    public async saveControllerBookmarks(controller: Controller): Promise<void> {
+        if (!controller.workspaceFolder) {
+            return;
+        }
+
+        const uri = getBookmarksJsonUri(controller.workspaceFolder);
+        const currentContents = await this.readCurrentContents(uri);
+        const document = this.parseDocument(currentContents);
+        const writableDocument = this.toWritableDocument(document);
+
+        writableDocument.bookmarks = [
+            ...writableDocument.bookmarks.filter(bookmark => !isManualBookmark(bookmark)),
+            ...toManualControllerBookmarks(controller)
+        ].sort(compareBookmarks);
+
+        const nextContents = JSON.stringify(writableDocument, null, 4) + "\n";
+        if (currentContents === nextContents) {
+            return;
+        }
+
+        await writeFileUri(uri, nextContents);
+    }
 
     public async saveManualLocation(location: ReferenceLocation): Promise<void> {
         const uri = getBookmarksJsonUri(location.workspaceFolder);
@@ -206,6 +231,29 @@ function upsertManualBookmark(bookmarks: BookmarksJsonBookmark[], location: Refe
     bookmarks.push(toManualBookmark(location));
 }
 
+function toManualControllerBookmarks(controller: Controller): BookmarksJsonBookmark[] {
+    const bookmarks: BookmarksJsonBookmark[] = [];
+
+    for (const file of controller.files.filter(canSaveControllerFile)) {
+        for (const bookmark of file.bookmarks) {
+            bookmarks.push({
+                id: createManualControllerBookmarkId(controller, file.path, bookmark.line + 1, bookmark.column + 1),
+                label: bookmark.label,
+                file: normalizeBookmarkFile(file.path),
+                line: bookmark.line + 1,
+                column: bookmark.column + 1,
+                refs: []
+            });
+        }
+    }
+
+    return bookmarks;
+}
+
+function canSaveControllerFile(file: File): boolean {
+    return !file.uri && file.bookmarks.length > 0;
+}
+
 function toManualBookmark(location: ReferenceLocation): BookmarksJsonBookmark {
     return {
         id: createManualBookmarkId(location),
@@ -229,9 +277,16 @@ function createManagedBookmarkId(location: ReferenceLocation): string {
 }
 
 function createManualBookmarkId(location: ReferenceLocation): string {
+    return createManualControllerBookmarkId(location.workspaceFolder.uri.toString(), location.file, location.line, location.column);
+}
+
+function createManualControllerBookmarkId(controllerOrWorkspace: Controller | string, file: string, line: number, column: number): string {
+    const workspaceKey = typeof controllerOrWorkspace === "string"
+        ? controllerOrWorkspace
+        : controllerOrWorkspace.workspaceFolder?.uri.toString() ?? "";
     const hash = crypto
         .createHash("sha1")
-        .update(`${location.workspaceFolder.uri.toString()}|${location.file}|${location.line}|${location.column}`)
+        .update(`${workspaceKey}|${file}|${line}|${column}`)
         .digest("hex")
         .substring(0, 12);
 
@@ -240,6 +295,10 @@ function createManualBookmarkId(location: ReferenceLocation): string {
 
 function isManagedBookmark(bookmark: BookmarksJsonBookmark): boolean {
     return typeof bookmark.id === "string" && bookmark.id.startsWith(MANAGED_BOOKMARK_ID_PREFIX);
+}
+
+function isManualBookmark(bookmark: BookmarksJsonBookmark): boolean {
+    return typeof bookmark.id === "string" && bookmark.id.startsWith(MANUAL_BOOKMARK_ID_PREFIX);
 }
 
 function isSameBookmarkLocation(bookmark: BookmarksJsonBookmark, file: string, line: number, column: number): boolean {

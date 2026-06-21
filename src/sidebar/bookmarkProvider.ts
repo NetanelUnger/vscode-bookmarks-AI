@@ -520,6 +520,21 @@ export class BookmarksExplorer {
         return this.treeDataProvider;
     }
 
+    async openAll(): Promise<void> {
+        const roots = await this.treeDataProvider.getChildren();
+        for (const root of roots) {
+            await this.revealExpanded(root);
+        }
+    }
+
+    private async revealExpanded(node: BookmarkExplorerNode): Promise<void> {
+        await this.bookmarksExplorer.reveal(node, { expand: true });
+        const children = await this.treeDataProvider.getChildren(node);
+        for (const child of children) {
+            await this.revealExpanded(child);
+        }
+    }
+
     updateBadge() {
         const config = vscode.workspace.getConfiguration("bookmarks.sideBar").get<string>("countBadge", "all");
         if (config === BadgeConfig.Off) {

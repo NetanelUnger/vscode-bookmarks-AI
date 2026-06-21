@@ -149,6 +149,11 @@
                 "icon": "$(refresh)"
             },
             {
+                "command": "bookmarks.openAll",
+                "title": "%bookmarks.commands.openAll.title%",
+                "icon": "$(expand-all)"
+            },
+            {
                 "command": "bookmarks.openSettings",
                 "title": "%bookmarks.commands.openSettings.title%"
             },
@@ -298,6 +303,10 @@
                     "when": "false"
                 },
                 {
+                    "command": "bookmarks.openAll",
+                    "when": "false"
+                },
+                {
                     "command": "bookmarks.openSettings",
                     "when": "false"
                 },
@@ -386,6 +395,11 @@
                     "submenu": "bookmarksAI.actions",
                     "when": "view == bookmarksExplorer",
                     "group": "navigation@8"
+                },
+                {
+                    "command": "bookmarks.openAll",
+                    "when": "view == bookmarksExplorer",
+                    "group": "navigation@9"
                 },
                 {
                     "command": "bookmarks.refresh",
