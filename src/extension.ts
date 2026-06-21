@@ -195,6 +195,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
     bookmarkExplorer.updateBadge();
 
+    context.subscriptions.push(vscode.commands.registerCommand("bookmarks.openAll", () => bookmarkExplorer.openAll()));
+
     toggleSideBarWelcomeVisibility();
 
     function toggleSideBarWelcomeVisibility() {
