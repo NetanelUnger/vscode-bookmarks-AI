@@ -40,6 +40,7 @@
     "bookmarks.commands.export.title": "Export",
     "bookmarksAI.commands.category": "Bookmarks AI",
     "bookmarksAI.commands.refreshProjectIndex.title": "Refresh Project Index",
+    "bookmarksAI.commands.updateProjectFiles.title": "Update Bookmark Files",
     "bookmarksAI.commands.showReferencesForCurrentLine.title": "Show References for Current Line",
     "bookmarksAI.commands.addReferenceToCurrentLocation.title": "Add Bookmark Metadata to Current Location",
     "bookmarksAI.commands.removeReference.title": "Remove Bookmark Metadata at Current Line",

@@ -8,7 +8,7 @@ import { ExtensionContext, Position, Range, TextEditor, Uri, l10n, workspace } f
 import { BookmarkMarkdownGuide, getBookmarkMarkdownUri } from "../bookmarksJson/bookmarkMarkdownGuide";
 import { BookmarksJsonLoader, getBookmarksJsonUri } from "../bookmarksJson/bookmarksJsonLoader";
 import { BookmarksJsonWriter } from "../bookmarksJson/bookmarksJsonWriter";
-import { getRelativePath, writeFileUri } from "../utils/fs";
+import { getRelativePath } from "../utils/fs";
 import { ReferenceIndex } from "../references/referenceIndex";
 import { ReferenceLocation, ReferenceProblem } from "../references/referenceModel";
 import { REFERENCE_SOURCE_GLOB, ReferenceScanner } from "../references/referenceScanner";
@@ -30,6 +30,7 @@ export function registerBookmarksAI(context: ExtensionContext): ReferenceTreePro
     context.subscriptions.push(
         controller,
         vscode.commands.registerCommand("bookmarksAI.refreshProjectIndex", (showMessage = true) => controller.refresh(showMessage !== false)),
+        vscode.commands.registerCommand("bookmarksAI.updateProjectFiles", () => controller.updateProjectFiles()),
         vscode.commands.registerCommand("bookmarksAI.showReferencesForCurrentLine", () => controller.showReferencesForCurrentLine()),
         vscode.commands.registerCommand("bookmarksAI.addReferenceToCurrentLocation", () => controller.addReferenceToCurrentLocation()),
         vscode.commands.registerCommand("bookmarksAI.removeReference", () => controller.removeReference()),
@@ -62,7 +63,6 @@ class BookmarksAIController implements vscode.Disposable {
     }
 
     public start(): void {
-        this.ensureBookmarkMarkdownGuide();
         this.registerWatchers();
         this.refresh(false);
     }
@@ -80,20 +80,35 @@ class BookmarksAIController implements vscode.Disposable {
     }
 
     public async refresh(showMessage: boolean): Promise<void> {
-        const jsonResult = await this.loader.load();
-        const scanResult = await this.scanner.scanWorkspace();
-
-        this.index.replaceJson(jsonResult.groups, jsonResult.locations, jsonResult.problems);
-        this.index.replaceAnnotations(scanResult.locations, scanResult.problems);
-        await this.saveBookmarksJsonFromAnnotations();
+        await this.loadProjectIndex();
         this.provider.refresh();
 
         if (showMessage) {
             vscode.window.showInformationMessage(l10n.t(
-                "Bookmarks AI index refreshed and saved: {0} locations, {1} problems",
+                "Bookmarks AI index refreshed: {0} locations, {1} problems",
                 this.index.getLocations().length,
                 this.index.getProblems().length
             ));
+        }
+    }
+
+    public async updateProjectFiles(): Promise<void> {
+        try {
+            await this.loadProjectIndex();
+            await this.bookmarkMarkdownGuide.ensureAll();
+            await this.writer.saveAnnotationLocations(this.index.getAnnotationLocations());
+
+            const jsonResult = await this.loader.load();
+            this.index.replaceJson(jsonResult.groups, jsonResult.locations, jsonResult.problems);
+            this.provider.refresh();
+
+            vscode.window.showInformationMessage(l10n.t(
+                "Bookmarks AI project files updated: {0} locations, {1} problems",
+                this.index.getLocations().length,
+                this.index.getProblems().length
+            ));
+        } catch (error) {
+            vscode.window.showErrorMessage(l10n.t("Unable to update Bookmarks AI project files: {0}", getErrorMessage(error)));
         }
     }
 
@@ -118,8 +133,8 @@ class BookmarksAIController implements vscode.Disposable {
 
         const uri = getBookmarksJsonUri(workspaceFolder);
         if (!await uriExists(uri)) {
-            const initialContents = JSON.stringify({ version: 1, groups: [], bookmarks: [] }, null, 4) + "\n";
-            await writeFileUri(uri, initialContents);
+            vscode.window.showInformationMessage(l10n.t("{0} has not been created yet. Run Bookmarks AI: Update Bookmark Files to create it.", "bookmarks.json"));
+            return;
         }
 
         const document = await workspace.openTextDocument(uri);
@@ -133,7 +148,12 @@ class BookmarksAIController implements vscode.Disposable {
             return;
         }
 
-        const uri = await this.bookmarkMarkdownGuide.ensure(workspaceFolder);
+        const uri = getBookmarkMarkdownUri(workspaceFolder);
+        if (!await uriExists(uri)) {
+            vscode.window.showInformationMessage(l10n.t("{0} has not been created yet. Run Bookmarks AI: Update Bookmark Files to create it.", "bookmark.md"));
+            return;
+        }
+
         const document = await workspace.openTextDocument(uri);
         await vscode.window.showTextDocument(document);
     }
@@ -334,9 +354,8 @@ class BookmarksAIController implements vscode.Disposable {
             sourceWatcher,
             sourceWatcher.onDidCreate(uri => this.scheduleFileScan(uri)),
             sourceWatcher.onDidChange(uri => this.scheduleFileScan(uri)),
-            sourceWatcher.onDidDelete(async uri => {
+            sourceWatcher.onDidDelete(uri => {
                 this.index.removeFileAnnotations(uri);
-                await this.saveBookmarksJsonFromAnnotations();
                 this.provider.refresh();
             })
         );
@@ -393,7 +412,6 @@ class BookmarksAIController implements vscode.Disposable {
         const workspaceFolder = workspace.getWorkspaceFolder(uri);
         if (!workspaceFolder || this.scanner.isIgnoredUri(uri, workspaceFolder)) {
             this.index.removeFileAnnotations(uri);
-            await this.saveBookmarksJsonFromAnnotations();
             this.provider.refresh();
             return;
         }
@@ -403,24 +421,17 @@ class BookmarksAIController implements vscode.Disposable {
             ? this.scanner.scanTextDocument(openDocument)
             : await this.scanner.scanFile(uri);
         this.index.replaceFileAnnotations(uri, scanResult.locations, scanResult.problems);
-        await this.saveBookmarksJsonFromAnnotations();
         this.provider.refresh();
     }
 
-    private async saveBookmarksJsonFromAnnotations(): Promise<void> {
-        try {
-            await this.writer.saveAnnotationLocations(this.index.getAnnotationLocations());
-            const jsonResult = await this.loader.load();
-            this.index.replaceJson(jsonResult.groups, jsonResult.locations, jsonResult.problems);
-        } catch (error) {
-            vscode.window.showErrorMessage(l10n.t("Unable to save bookmarks.json: {0}", getErrorMessage(error)));
-        }
-    }
+    private async loadProjectIndex(): Promise<void> {
+        const [ jsonResult, scanResult ] = await Promise.all([
+            this.loader.load(),
+            this.scanner.scanWorkspace()
+        ]);
 
-    private ensureBookmarkMarkdownGuide(): void {
-        this.bookmarkMarkdownGuide.ensureAll().then(undefined, error => {
-            vscode.window.showErrorMessage(l10n.t("Unable to create bookmark.md: {0}", getErrorMessage(error)));
-        });
+        this.index.replaceJson(jsonResult.groups, jsonResult.locations, jsonResult.problems);
+        this.index.replaceAnnotations(scanResult.locations, scanResult.problems);
     }
 }
 

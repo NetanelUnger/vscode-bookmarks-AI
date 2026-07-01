@@ -233,6 +233,12 @@
                 "icon": "$(refresh)"
             },
             {
+                "command": "bookmarksAI.updateProjectFiles",
+                "title": "%bookmarksAI.commands.updateProjectFiles.title%",
+                "category": "%bookmarksAI.commands.category%",
+                "icon": "$(save-all)"
+            },
+            {
                 "command": "bookmarksAI.showReferencesForCurrentLine",
                 "title": "%bookmarksAI.commands.showReferencesForCurrentLine.title%",
                 "category": "%bookmarksAI.commands.category%"
@@ -419,6 +425,11 @@
                     "command": "bookmarks.refresh",
                     "when": "view == bookmarksExplorer",
                     "group": "navigation@10"
+                },
+                {
+                    "command": "bookmarksAI.updateProjectFiles",
+                    "when": "view == bookmarksExplorer",
+                    "group": "navigation@11"
                 },
                 {
                     "command": "bookmarks.openSettings",
